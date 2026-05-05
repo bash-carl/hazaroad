@@ -5,7 +5,7 @@
 ## 🚀 Quick Download
 You can download the latest build of the Hazaroad application and the required HazaAI model file from the official release page:
 
-👉 [**Download Hazaroad & HazaAI Model**](https://github.com/bash-carl/haza-ai/releases/tag/hazaroad)
+👉 [**HazaAI Model**](https://github.com/bash-carl/haza-ai/releases/tag/hazaroad)
 
 ## ✨ Features
 *   **HazaAI**: Local AI powered by Google Gemma 1B_Q4 for offline report summarization.
