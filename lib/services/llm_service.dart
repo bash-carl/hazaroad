@@ -63,6 +63,10 @@ class LLMService {
       });
       return result;
     } on PlatformException catch (e) {
+      if (e.code == 'BUSY') {
+        print("LLMService: inference already in progress, skipping.");
+        return false;
+      }
       print("Failed to generate: '${e.message}'.");
       return false;
     }
