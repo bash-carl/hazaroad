@@ -3,7 +3,7 @@
 **Hazaroad** is a specialized disaster monitoring and hazard reporting application designed for the community of **Lopez, Quezon**. It features **HazaAI**, an offline-first intelligence engine that helps summarize flood and road hazard reports even during connectivity outages.
 
 ## 🚀 Quick Download
-You can download the latest build of the Hazaroad application and the required HazaAI model file from the official release page:
+You can download the the required HazaAI model file from the official release page:
 
 👉 [**HazaAI Model**](https://github.com/bash-carl/haza-ai/releases/tag/hazaroad)
 
