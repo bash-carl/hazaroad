@@ -56,12 +56,23 @@ class WeatherService {
   }
 
   String getWeatherIconAsset(int code, {bool isDay = true}) {
-    final basePath = 'Weather Assets/Weather Icons/';
+    final basePath = 'Weather Assets/cloud icons/';
     if (code == 0 || code <= 3) return isDay ? basePath + 'Sun cloud mid rain.png' : basePath + 'Moon cloud fast wind.png';
     if (code <= 48) return basePath + 'Moon cloud fast wind.png'; // Fog/cloudy
     if (code <= 65 || code <= 82) return isDay ? basePath + 'Sun cloud angled rain.png' : basePath + 'Moon cloud mid rain.png'; // Rain
     if (code <= 99) return basePath + 'Tornado.png'; // Storm/severe
     return basePath + 'Sun cloud mid rain.png'; // Default
+  }
+
+  String getWeatherBackgroundAsset(int code, {bool isDay = true}) {
+    final basePath = 'Weather Assets/assets/';
+    bool isRainy = (code >= 50 && code <= 99);
+    
+    if (isRainy) {
+      return isDay ? basePath + 'rainmorning.png' : basePath + 'rainnight.png';
+    } else {
+      return isDay ? basePath + 'morning.png' : basePath + 'night.png';
+    }
   }
 
   String getWindDirection(double degrees) {
