@@ -85,58 +85,75 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ModelImportScreen(),
   ];
 
-  static const _navItems = [
-    _NavItemData(icon: Icons.map_outlined, activeIcon: Icons.map, label: 'Map'),
-    _NavItemData(icon: Icons.cloud_outlined, activeIcon: Icons.cloud, label: 'Weather'),
-    _NavItemData(icon: Icons.memory_outlined, activeIcon: Icons.memory, label: 'AI Model'),
-  ];
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       backgroundColor: AppColors.bg,
       body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: Container(
-        color: AppColors.bg,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        height: 100, // accommodate the curve
+        child: Stack(
+          alignment: Alignment.bottomCenter,
           children: [
-            // Top divider
-            const Divider(height: 1, thickness: 1, color: AppColors.border),
-            SafeArea(
-              child: SizedBox(
-                height: 56,
-                child: Row(
-                  children: List.generate(_navItems.length, (i) {
-                    final item = _navItems[i];
-                    final selected = _selectedIndex == i;
-                    return Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _selectedIndex = i),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              selected ? item.activeIcon : item.icon,
-                              size: 22,
-                              color: selected ? Colors.white : AppColors.muted,
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              item.label,
-                              style: TextStyle(
-                                color: selected ? Colors.white : AppColors.muted,
-                                fontSize: 10,
-                                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
+            // Background TabBar
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Image.asset(
+                'Weather Assets/ui/TabBar.png',
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+            // Icons
+            Positioned(
+              bottom: 25,
+              left: 60,
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedIndex = 0),
+                child: Image.asset(
+                  'Weather Assets/ui/map.png',
+                  width: 24,
+                  height: 24,
+                  color: _selectedIndex == 0 ? Colors.white : Colors.white70,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 30, // center button is raised
+              child: GestureDetector(
+                onTap: () {
+                  // AI action or something
+                },
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                  ),
+                  child: Image.asset(
+                    'Weather Assets/ui/buttonmid.png',
+                    width: 60,
+                    height: 60,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 25,
+              right: 60,
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedIndex = 1),
+                child: Image.asset(
+                  'Weather Assets/ui/info.png', // or list icon
+                  width: 24,
+                  height: 24,
+                  color: _selectedIndex == 1 ? Colors.white : Colors.white70,
+                  filterQuality: FilterQuality.high,
                 ),
               ),
             ),
@@ -145,11 +162,4 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
     );
   }
-}
-
-class _NavItemData {
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  const _NavItemData({required this.icon, required this.activeIcon, required this.label});
 }

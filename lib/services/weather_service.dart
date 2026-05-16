@@ -55,6 +55,15 @@ class WeatherService {
     return '🌡️';
   }
 
+  String getWeatherIconAsset(int code, {bool isDay = true}) {
+    final basePath = 'Weather Assets/Weather Icons/';
+    if (code == 0 || code <= 3) return isDay ? basePath + 'Sun cloud mid rain.png' : basePath + 'Moon cloud fast wind.png';
+    if (code <= 48) return basePath + 'Moon cloud fast wind.png'; // Fog/cloudy
+    if (code <= 65 || code <= 82) return isDay ? basePath + 'Sun cloud angled rain.png' : basePath + 'Moon cloud mid rain.png'; // Rain
+    if (code <= 99) return basePath + 'Tornado.png'; // Storm/severe
+    return basePath + 'Sun cloud mid rain.png'; // Default
+  }
+
   String getWindDirection(double degrees) {
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     return dirs[((degrees + 22.5) / 45).floor() % 8];
