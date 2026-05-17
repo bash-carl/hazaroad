@@ -105,7 +105,8 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.hazaroad.im',
               ),
               if (mapProvider.showWeather && mapProvider.weatherTileUrl != null)
@@ -145,10 +146,13 @@ class _MapScreenState extends State<MapScreen> {
                         point: hazard.location,
                         width: 40,
                         height: 40,
-                        child: Icon(
-                          _getHazardIcon(hazard.type),
-                          color: _getHazardColor(hazard.type),
-                          size: 30,
+                        child: GestureDetector(
+                          onTap: () => _showHazardPreviewSheet(context, hazard),
+                          child: Icon(
+                            _getHazardIcon(hazard.type),
+                            color: _getHazardColor(hazard.type),
+                            size: 30,
+                          ),
                         ),
                       )).toList(),
                 ],
@@ -224,38 +228,15 @@ class _MapScreenState extends State<MapScreen> {
               left: 16,
               child: _WeatherStatusCard(),
             ),
-          Consumer<MapProvider>(
-            builder: (context, provider, _) {
-              if (provider.aiSummary.isEmpty) return const SizedBox.shrink();
-              return Positioned(
-                top: 150,
-                left: 16,
-                right: 16,
-                child: _HazaAISummaryCard(summary: provider.aiSummary),
-              );
-            },
-          ),
+
           Positioned(
-            bottom: 20,
+            bottom: 110,
             left: 0,
             right: 0,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (mapProvider.hazards.isNotEmpty || mapProvider.floodLines.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: ElevatedButton.icon(
-                      onPressed: () => mapProvider.generateHazaAISummary(),
-                      icon: const Icon(Icons.psychology, size: 16),
-                      label: const Text('Summarize with HazaAI'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                      ),
-                    ),
-                  ),
+
                 _buildWarningCapsules(context, mapProvider),
               ],
             ),
@@ -395,19 +376,23 @@ class _MapScreenState extends State<MapScreen> {
         itemBuilder: (ctx, i) {
           final item = items[items.length - 1 - i];
           return Container(
-            width: 240,
+            width: 250,
             margin: const EdgeInsets.only(right: 12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(20),
-              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))],
-              border: Border.all(color: item['color'], width: 1.5),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 6))],
+              border: Border.all(color: item['color'].withOpacity(0.3), width: 1),
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: item['color'].withOpacity(0.1),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: item['color'].withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(item['icon'], color: item['color'], size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -416,8 +401,19 @@ class _MapScreenState extends State<MapScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(item['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: item['color'])),
-                      Text(item['desc'], maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                      Text(
+                        item['title'], 
+                        maxLines: 1, 
+                        overflow: TextOverflow.ellipsis, 
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: item['color'])
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        item['desc'], 
+                        maxLines: 2, 
+                        overflow: TextOverflow.ellipsis, 
+                        style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.2)
+                      ),
                     ],
                   ),
                 ),
@@ -428,39 +424,153 @@ class _MapScreenState extends State<MapScreen> {
       ),
     );
   }
-}
 
-class _HazaAISummaryCard extends StatelessWidget {
-  final String summary;
-  const _HazaAISummaryCard({required this.summary});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.deepPurple.shade900, Colors.deepPurple.shade600]),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 15, offset: Offset(0, 8))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.psychology, color: Colors.white, size: 24),
-              const SizedBox(width: 12),
-              const Text('HazaAI powered by Gemma', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-              const Spacer(),
-              IconButton(icon: const Icon(Icons.close, color: Colors.white70, size: 18), onPressed: () => Provider.of<MapProvider>(context, listen: false).setAISummary('')),
+  void _showHazardPreviewSheet(BuildContext context, Hazard hazard) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final timeStr = '${hazard.timestamp.hour.toString().padLeft(2, '0')}:${hazard.timestamp.minute.toString().padLeft(2, '0')}';
+        final dateStr = '${hazard.timestamp.year}-${hazard.timestamp.month.toString().padLeft(2, '0')}-${hazard.timestamp.day.toString().padLeft(2, '0')}';
+
+        return Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.border, width: 1),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20, spreadRadius: 5),
             ],
           ),
-          const Divider(color: Colors.white30),
-          Text(summary, style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4)),
-        ],
-      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Photo Placeholder Area
+              Container(
+                height: 180,
+                decoration: const BoxDecoration(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(23)),
+                  color: Color(0xFF1E1E1E),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_photo_alternate_outlined, size: 48, color: AppColors.muted.withOpacity(0.5)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'No photo attached',
+                        style: TextStyle(color: AppColors.muted.withOpacity(0.8), fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Hazard Info
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _getHazardColor(hazard.type).withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(_getHazardIcon(hazard.type), color: _getHazardColor(hazard.type), size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                hazard.typeString.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 14, color: AppColors.muted),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Reported at $timeStr on $dateStr',
+                                    style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text('DESCRIPTION', style: TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                    const SizedBox(height: 8),
+                    Text(
+                      hazard.description.isNotEmpty ? hazard.description : 'No additional details provided for this hazard.',
+                      style: const TextStyle(color: AppColors.text, fontSize: 15, height: 1.5),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Footer details
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person_pin, color: AppColors.accent, size: 20),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Reported by ${hazard.reporterName}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // Action button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: const Text('Close Preview', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
+
 
 
 class _WeatherStatusCard extends StatefulWidget {

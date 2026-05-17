@@ -10,6 +10,8 @@ import 'services/map_provider.dart';
 import 'services/weather_provider.dart';
 import 'services/weather_service.dart';
 import 'services/llm_service.dart';
+import 'models/hazard_model.dart';
+import 'package:latlong2/latlong.dart';
 import 'screens/model_import_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/weather_summary_screen.dart';
@@ -126,9 +128,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
 
     _llmSubscription = LLMService().onTokenStream.listen((event) {
       final rawText = event['text'] as String?;
+      final done = event['done'] as bool? ?? false;
+
       if (rawText != null && _aiState != HazaAIState.idle) {
-        // Strip markdown and newlines so the text and TTS remain clean
-        final text = rawText.replaceAll('**', '').replaceAll('\n', ' ');
+        // Strip markdown, actual newlines, and literal '\n' strings
+        final text = rawText.replaceAll('**', '').replaceAll(RegExp(r'[\r\n]+'), ' ').replaceAll(RegExp(r'\\n'), ' ');
         
         setState(() {
           if (_aiState == HazaAIState.processing) {
@@ -139,10 +143,35 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
 
         _sentenceBuffer += text;
         if (text.contains('.') || text.contains('?') || text.contains('!')) {
-          if (_sentenceBuffer.trim().isNotEmpty) {
-            _flutterTts.speak(_sentenceBuffer.trim());
+          // Prevent speaking the hidden tag
+          final sanitizedBuffer = _sentenceBuffer.replaceAll(RegExp(r'\[PIN:.*?\]?'), '');
+          if (sanitizedBuffer.trim().isNotEmpty) {
+            _flutterTts.speak(sanitizedBuffer.trim());
           }
           _sentenceBuffer = "";
+        }
+      }
+
+      if (done && _aiState == HazaAIState.answering) {
+        final pinRegex = RegExp(r'\[PIN:\s*([^\|]+)\|\s*(.*?)\]');
+        final match = pinRegex.firstMatch(_aiResponseText);
+        
+        if (match != null) {
+          final typeStr = match.group(1)?.trim().toLowerCase() ?? '';
+          final descStr = match.group(2)?.trim() ?? '';
+          
+          HazardType type = HazardType.other;
+          if (typeStr.contains('accident')) type = HazardType.accident;
+          else if (typeStr.contains('pothole')) type = HazardType.pothole;
+          else if (typeStr.contains('construction')) type = HazardType.construction;
+          
+          final provider = Provider.of<MapProvider>(context, listen: false);
+          // Auto pin at Magsaysay map center
+          provider.addHazard(const LatLng(13.8859, 122.2630), type, description: descStr);
+          
+          setState(() {
+            _aiResponseText = _aiResponseText.replaceAll(pinRegex, '').trim();
+          });
         }
       }
     });
@@ -202,9 +231,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
       weatherContext = "Lopez, Quezon: $temp°C, $desc";
     }
 
-    final systemPrompt = "System: Your name is Haza. You are a friendly, conversational AI companion. "
-        "Only mention the weather if the user explicitly asks about it. (Hidden Context: Current weather is $weatherContext). "
-        "Speak naturally in 1-2 short sentences. Do NOT use markdown formatting like ** or newlines.\n"
+    final systemPrompt = "System: Your name is Haza. You are a highly talkative, engaging, and friendly AI companion. "
+        "Feel free to warmly introduce yourself to the user. "
+        "CRITICAL RULE: DO NOT mention the weather UNLESS the user explicitly asks about it! If they ask, use this info: $weatherContext. "
+        "If the user is reporting an accident, pothole, flood, or hazard, you MUST output a special hidden tag at the very end of your response in the exact format: [PIN: type|description]. Types must be one of: accident, pothole, construction, other. "
+        "Speak naturally in a single continuous paragraph. DO NOT use markdown like **. DO NOT output the characters '\\n' or create new lines.\n"
         "User: $_userSpokenText\nHaza:";
 
     final success = await LLMService().generate(systemPrompt);
@@ -257,17 +288,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
     }
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutExpo,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOutQuart,
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: _aiState == HazaAIState.processing ? Colors.transparent : const Color(0xFF3B3259).withOpacity(0.85),
         borderRadius: borderRadius,
-        border: _aiState == HazaAIState.processing ? null : Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
-        boxShadow: _aiState == HazaAIState.processing ? [] : [
+        border: Border.all(
+          color: _aiState == HazaAIState.processing ? Colors.transparent : Colors.white.withOpacity(0.15), 
+          width: 0.5
+        ),
+        boxShadow: _aiState == HazaAIState.processing || _aiState == HazaAIState.idle ? [] : [
           BoxShadow(
-            color: AppColors.accent.withOpacity(0.2),
+            color: AppColors.accent.withOpacity(0.15),
             blurRadius: 20,
             spreadRadius: 2,
           )
@@ -276,8 +309,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          if (_aiState == HazaAIState.processing)
-            Positioned.fill(
+          // Rainbow Gradient for processing, fading in smoothly
+          Positioned.fill(
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeInOut,
+              opacity: _aiState == HazaAIState.processing ? 1.0 : 0.0,
               child: AnimatedBuilder(
                 animation: _rainbowController,
                 builder: (context, child) {
@@ -302,14 +339,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
                 },
               ),
             ),
+          ),
+          // Tinted blur with animated background color
           Positioned.fill(
             child: ClipRRect(
               borderRadius: borderRadius,
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                child: Container(
-                  color: const Color(0xFF3B3259).withOpacity(0.85),
-                  child: _buildAIContent(),
+                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeInOutQuart,
+                  color: _aiState == HazaAIState.processing 
+                      ? const Color(0xFF3B3259).withOpacity(0.2) // More transparent when thinking
+                      : const Color(0xFF3B3259).withOpacity(0.7), // Normal tinted blur
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
+                    child: _buildAIContent(),
+                  ),
                 ),
               ),
             ),
@@ -320,10 +377,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
   }
 
   Widget _buildAIContent() {
-    if (_aiState == HazaAIState.idle) return const SizedBox.shrink();
+    if (_aiState == HazaAIState.idle) {
+      return const SizedBox.shrink(key: ValueKey('idle'));
+    }
 
     if (_aiState == HazaAIState.listening) {
       return SingleChildScrollView(
+        key: const ValueKey('listening'),
         physics: const NeverScrollableScrollPhysics(),
         child: Container(
           height: 70, // Fixed height to match container target
@@ -349,6 +409,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
 
     if (_aiState == HazaAIState.processing) {
       return SingleChildScrollView(
+        key: const ValueKey('processing'),
         physics: const NeverScrollableScrollPhysics(),
         child: Container(
           height: 70,
@@ -367,6 +428,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
 
     if (_aiState == HazaAIState.answering) {
       return SingleChildScrollView(
+        key: const ValueKey('answering'),
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -401,7 +463,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
         ),
       );
     }
-    return const SizedBox.shrink();
+    return const SizedBox.shrink(key: ValueKey('empty'));
   }
 
   @override
